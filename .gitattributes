@@ -1,0 +1,16 @@
+# ==============================================================================
+# GitHub Linguist Overrides
+# ==============================================================================
+# Help balance the language statistics for Linguist library in GitHub
+
+# Mark frontend configuration and lock files as generated so they aren't 
+# counted towards the TypeScript/JavaScript total.
+frontend/package-lock.json linguist-generated=true
+frontend/package.json linguist-generated=true
+frontend/tsconfig.json linguist-generated=true
+frontend/next.config.ts linguist-generated=true
+frontend/eslint.config.mjs linguist-generated=true
+frontend/postcss.config.mjs linguist-generated=true
+
+# Ensure Python files are explicitly counted
+backend/*.py linguist-detectable=true
