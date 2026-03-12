@@ -43,6 +43,7 @@ audio_cache/
 /frontend/coverage
 
 # next.js
+.next/
 /frontend/.next/
 /frontend/out/
 
@@ -57,6 +58,9 @@ audio_cache/
 /frontend/yarn-debug.log*
 /frontend/yarn-error.log*
 /frontend/.pnpm-debug.log*
+
+# backup files
+*.bak
 
 # env files (can opt-in for committing if needed)
 /frontend/.env*
