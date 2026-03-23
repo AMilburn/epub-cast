@@ -24,7 +24,7 @@ const VOICES = [
 
 export function Sidebar({ onBack, coverUrl, metadata, toc, currentChapter, onSelectChapter, selectedVoice, onVoiceChange }: SidebarProps) {
     return (
-        <div className="w-80 border-r border-gray-800 bg-[#0d0d0f] flex flex-col h-full shrink-0">
+        <div className="w-80 border-r border-gray-800 bg-[#0d0d0f] flex flex-col h-full shrink-0 animate-in slide-in-from-left duration-300 ease-out">
             <div className="p-6 border-b border-gray-800 shrink-0">
                 <button onClick={onBack} className="text-sm text-gray-400 hover:text-white mb-4 transition-colors">
                     &larr; Back to Upload

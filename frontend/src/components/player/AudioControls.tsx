@@ -7,6 +7,7 @@ interface AudioControlsProps {
     metadata: any;
     onPlayPause: () => void;
     onDownload: () => void;
+    onToggleChapterList: () => void;
 }
 
 export function AudioControls({
@@ -15,7 +16,8 @@ export function AudioControls({
     currentChapter,
     metadata,
     onPlayPause,
-    onDownload
+    onDownload,
+    onToggleChapterList
 }: AudioControlsProps) {
     return (
         <div className="absolute bottom-0 left-0 right-0 glass px-6 py-4 flex items-center justify-between border-t border-gray-800 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-10">
@@ -71,7 +73,13 @@ export function AudioControls({
                 >
                     <Download size={20} />
                 </button>
-                <List size={20} />
+                <button
+                    onClick={onToggleChapterList}
+                    className="hover:text-white transition hover:scale-110"
+                    title="Show chapters"
+                >
+                    <List size={20} />
+                </button>
             </div>
         </div>
     );

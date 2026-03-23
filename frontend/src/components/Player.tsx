@@ -23,7 +23,8 @@ export default function Player({ file, onBack }: PlayerProps) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoadingAudio, setIsLoadingAudio] = useState(false);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
-    const [selectedVoice, setSelectedVoice] = useState("en-US-AriaNeural");
+    const [selectedVoice, setSelectedVoice] = useState("en-US-SteffanNeural");
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
@@ -151,16 +152,18 @@ export default function Player({ file, onBack }: PlayerProps) {
 
     return (
         <div className="flex h-screen w-full bg-background overflow-hidden relative">
-            <Sidebar
-                onBack={onBack}
-                coverUrl={coverUrl}
-                metadata={metadata}
-                toc={toc}
-                currentChapter={currentChapter}
-                onSelectChapter={selectChapter}
-                selectedVoice={selectedVoice}
-                onVoiceChange={handleVoiceChange}
-            />
+            {isSidebarOpen && (
+                <Sidebar
+                    onBack={onBack}
+                    coverUrl={coverUrl}
+                    metadata={metadata}
+                    toc={toc}
+                    currentChapter={currentChapter}
+                    onSelectChapter={selectChapter}
+                    selectedVoice={selectedVoice}
+                    onVoiceChange={handleVoiceChange}
+                />
+            )}
 
             <div className="flex-1 flex flex-col h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/10 via-background to-background relative">
                 <MainContent
@@ -175,6 +178,7 @@ export default function Player({ file, onBack }: PlayerProps) {
                     metadata={metadata}
                     onPlayPause={handlePlayPause}
                     onDownload={handleDownload}
+                    onToggleChapterList={() => setIsSidebarOpen(!isSidebarOpen)}
                 />
 
                 {audioUrl && (
