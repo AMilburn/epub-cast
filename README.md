@@ -87,7 +87,7 @@ Simply upload this file in the app to test the audio generation and voice select
 ## Roadmap (Priority Order)
 
 - [ ] Database persistence - store progress, books, and conversion history
-- [ ] PDF file support - extend beyond EPUB to PDF documents
+- [x] PDF file support - extend beyond EPUB to PDF documents
 - [ ] Improve voice selection UX - streamline switching between voices
 - [ ] Performance optimization - faster audio generation and processing
 - [ ] Smart content filtering - skip metadata/headers (source citations, etc.)

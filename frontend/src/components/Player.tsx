@@ -27,32 +27,70 @@ export default function Player({ file, onBack }: PlayerProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
+    const isPdf = file.name.endsWith(".pdf") || file.type === "application/pdf";
+    const pdfGetPageTextRef = useRef<((pageIndex: number) => Promise<string>) | null>(null);
+
     useEffect(() => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const bookData = e.target?.result as ArrayBuffer;
-            const newBook = ePub(bookData);
-            setBook(newBook);
+        let localBook: Book | null = null;
 
-            newBook.ready.then(() => {
-                setToc(newBook.navigation.toc);
-                setMetadata((newBook as any).package.metadata);
-
-                newBook.coverUrl().then(url => {
-                    setCoverUrl(url);
+        if (isPdf) {
+            // PDF handling - import dynamically to avoid server-side rendering issues
+            import("@/lib/pdf").then(({ loadPdf }) => {
+                loadPdf(file).then(({ toc, getPageText, title }: { toc: { id: string; label: string; href: string }[]; getPageText: (pageIndex: number) => Promise<string>; title: string }) => {
+                    setToc(toc);
+                    setMetadata({ title, creator: "" });
+                    setCoverUrl(null);
+                    pdfGetPageTextRef.current = getPageText;
+                }).catch((error: unknown) => {
+                    console.error("Failed to load PDF", error);
                 });
             });
-        };
-        reader.readAsArrayBuffer(file);
+        } else {
+            // EPUB handling
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const bookData = e.target?.result as ArrayBuffer;
+                localBook = ePub(bookData);
+                setBook(localBook);
+
+                localBook.ready.then(() => {
+                    if (!localBook) return;
+                    setToc(localBook.navigation.toc);
+                    setMetadata((localBook as Book & { package: { metadata: Record<string, string> } }).package.metadata);
+
+                    localBook.coverUrl().then(url => {
+                        setCoverUrl(url);
+                    });
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        }
 
         return () => {
-            if (book) {
-                book.destroy();
+            if (localBook) {
+                localBook.destroy();
+                setBook(null);
             }
         };
-    }, [file]);
+    }, [file, isPdf]);
 
     const loadChapterText = async (href: string) => {
+        if (isPdf) {
+            // PDF page text loading
+            const pageIndex = parseInt(href, 10);
+            if (!isNaN(pageIndex) && pdfGetPageTextRef.current) {
+                try {
+                    const text = await pdfGetPageTextRef.current(pageIndex);
+                    setChapterText(text);
+                    return text;
+                } catch (e) {
+                    console.error("Error loading PDF page text", e);
+                }
+            }
+            return;
+        }
+
+        // EPUB chapter text loading
         if (!book) return;
         try {
             const spineItem = book.spine.get(href);

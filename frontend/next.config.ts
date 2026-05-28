@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
       tailwindcss: "./node_modules/tailwindcss",
     },
   },
+  webpack: (config) => {
+    config.resolve.alias.canvas = false;
+    return config;
+  },
 };
 
 export default nextConfig;

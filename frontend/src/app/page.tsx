@@ -16,10 +16,15 @@ export default function Home() {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const droppedFile = e.dataTransfer.files[0];
-      if (droppedFile.type === "application/epub+zip" || droppedFile.name.endsWith(".epub")) {
+      if (
+        droppedFile.type === "application/epub+zip" ||
+        droppedFile.name.endsWith(".epub") ||
+        droppedFile.type === "application/pdf" ||
+        droppedFile.name.endsWith(".pdf")
+      ) {
         setFile(droppedFile);
       } else {
-        alert("Please upload an EPUB file.");
+        alert("Please upload an EPUB or PDF file.");
       }
     }
   };
@@ -47,7 +52,7 @@ export default function Home() {
             Listen to any <span className="text-blue-500">book</span>.
           </h1>
           <p className="text-lg text-gray-400 max-w-lg mx-auto leading-relaxed">
-            Turn your EPUB files into high-quality, chapter-by-chapter podcasts using neural text-to-speech.
+            Turn your EPUB and PDF files into high-quality, chapter-by-chapter podcasts using neural text-to-speech.
           </p>
         </div>
 
@@ -59,7 +64,7 @@ export default function Home() {
           >
             <input
               type="file"
-              accept=".epub,application/epub+zip"
+              accept=".epub,application/epub+zip,.pdf,application/pdf"
               className="hidden"
               onChange={handleFileInput}
             />
@@ -72,7 +77,7 @@ export default function Home() {
               </div>
               <div>
                 <p className="text-xl font-medium mb-1">Click or drag & drop</p>
-                <p className="text-sm border opacity-70 border-gray-700 px-3 py-1 rounded-full inline-block mt-2">EPUB up to 20MB</p>
+                <p className="text-sm border opacity-70 border-gray-700 px-3 py-1 rounded-full inline-block mt-2">EPUB or PDF up to 20MB</p>
               </div>
             </div>
           </label>
