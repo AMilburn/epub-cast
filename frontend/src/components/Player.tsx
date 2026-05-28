@@ -25,6 +25,7 @@ export default function Player({ file, onBack }: PlayerProps) {
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [selectedVoice, setSelectedVoice] = useState("en-US-SteffanNeural");
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const isPdf = file.name.endsWith(".pdf") || file.type === "application/pdf";
@@ -160,6 +161,10 @@ export default function Player({ file, onBack }: PlayerProps) {
         }
     };
 
+    useEffect(() => {
+        if (audioRef.current) audioRef.current.playbackRate = playbackSpeed;
+    }, [playbackSpeed, audioUrl]);
+
     const handleDownload = async () => {
         if (!currentChapter) return;
 
@@ -214,9 +219,14 @@ export default function Player({ file, onBack }: PlayerProps) {
                     isLoadingAudio={isLoadingAudio}
                     currentChapter={currentChapter}
                     metadata={metadata}
+                    playbackSpeed={playbackSpeed}
                     onPlayPause={handlePlayPause}
                     onDownload={handleDownload}
                     onToggleChapterList={() => setIsSidebarOpen(!isSidebarOpen)}
+                    onSpeedChange={(speed) => {
+                        setPlaybackSpeed(speed);
+                        if (audioRef.current) audioRef.current.playbackRate = speed;
+                    }}
                 />
 
                 {audioUrl && (

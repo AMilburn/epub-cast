@@ -1,13 +1,17 @@
 import { Play, Pause, SkipBack, SkipForward, List, Volume2, Loader2, Download } from "lucide-react";
 
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
 interface AudioControlsProps {
     isPlaying: boolean;
     isLoadingAudio: boolean;
     currentChapter: any | null;
     metadata: any;
+    playbackSpeed: number;
     onPlayPause: () => void;
     onDownload: () => void;
     onToggleChapterList: () => void;
+    onSpeedChange: (speed: number) => void;
 }
 
 export function AudioControls({
@@ -15,10 +19,17 @@ export function AudioControls({
     isLoadingAudio,
     currentChapter,
     metadata,
+    playbackSpeed,
     onPlayPause,
     onDownload,
-    onToggleChapterList
+    onToggleChapterList,
+    onSpeedChange,
 }: AudioControlsProps) {
+    const cycleSpeed = () => {
+        const currentIndex = SPEEDS.indexOf(playbackSpeed);
+        const nextIndex = (currentIndex + 1) % SPEEDS.length;
+        onSpeedChange(SPEEDS[nextIndex]);
+    };
     return (
         <div className="absolute bottom-0 left-0 right-0 glass px-6 py-4 flex items-center justify-between border-t border-gray-800 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-10">
             <div className="flex items-center gap-4 w-1/3">
@@ -65,6 +76,13 @@ export function AudioControls({
             </div>
 
             <div className="w-1/3 flex justify-end items-center gap-4 text-gray-400">
+                <button
+                    onClick={cycleSpeed}
+                    className="hover:text-white transition hover:scale-110 text-xs font-semibold w-10 text-center tabular-nums"
+                    title="Playback speed"
+                >
+                    {playbackSpeed === 1 ? "1×" : `${playbackSpeed}×`}
+                </button>
                 <button
                     onClick={onDownload}
                     disabled={!currentChapter || isLoadingAudio}
