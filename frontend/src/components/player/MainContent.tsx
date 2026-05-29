@@ -5,7 +5,7 @@ interface MainContentProps {
 
 export function MainContent({ currentChapter, chapterText }: MainContentProps) {
     return (
-        <div className="flex-1 overflow-y-auto p-8 lg:p-12 pb-32">
+        <div className="flex-1 overflow-y-auto p-8 lg:p-12">
             {currentChapter ? (
                 <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <h1 className="text-3xl font-bold mb-8 text-white/90">{currentChapter.label.trim()}</h1>
