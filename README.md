@@ -70,7 +70,7 @@ The application will be available at `http://localhost:3000`.
 
 A sample EPUB file is included in this repository to help you get started immediately:
 
-- **Sample Book:** *Wuthering Heights* by Emily Brontë (public domain)
+- **Sample Book:** _Wuthering Heights_ by Emily Brontë (public domain)
 - **Location:** `/sample/WutheringHeights.epub`
 - **Download:** [WutheringHeights.epub](https://raw.githubusercontent.com/AMilburn/epub-cast/main/sample/WutheringHeights.epub)
 
@@ -86,7 +86,7 @@ Simply upload this file in the app to test the audio generation and voice select
 
 ## Roadmap (Priority Order)
 
-- [ ] Database persistence - store progress, books, and conversion history
+- [x] Persistence - store progress, books, and conversion history
 - [x] PDF file support - extend beyond EPUB to PDF documents
 - [ ] Improve voice selection UX - streamline switching between voices
 - [ ] Performance optimization - faster audio generation and processing

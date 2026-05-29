@@ -6,10 +6,13 @@ import { Sidebar } from "./player/Sidebar";
 import { MainContent } from "./player/MainContent";
 import { AudioControls } from "./player/AudioControls";
 import { synthesizeAudio } from "@/lib/tts";
+import { savePosition, updateBookCover } from "@/lib/storage";
 
 interface PlayerProps {
     file: File;
     onBack: () => void;
+    initialChapterHref?: string;
+    initialTime?: number;
 }
 
 const BLOCK_ELEMENTS = new Set(["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "section", "article", "tr", "dd", "dt"]);
@@ -80,7 +83,7 @@ function extractReadableText(doc: Document | any, chapterLabel?: string): string
     }
 }
 
-export default function Player({ file, onBack }: PlayerProps) {
+export default function Player({ file, onBack, initialChapterHref, initialTime }: PlayerProps) {
     const [book, setBook] = useState<Book | null>(null);
     const [toc, setToc] = useState<any[]>([]);
     const [currentChapter, setCurrentChapter] = useState<any | null>(null);
@@ -99,6 +102,10 @@ export default function Player({ file, onBack }: PlayerProps) {
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+    const pendingTimeRef = useRef<number | null>(initialTime ?? null);
+    const currentChapterRef = useRef<{ href: string; label: string } | null>(null);
+    const lastSaveRef = useRef<number>(0);
+    const hasAutoSelectedRef = useRef(false);
 
     const isPdf = file.name.endsWith(".pdf") || file.type === "application/pdf";
     const pdfGetPageTextRef = useRef<((pageIndex: number) => Promise<string>) | null>(null);
@@ -129,8 +136,20 @@ export default function Player({ file, onBack }: PlayerProps) {
                     setToc(localBook.navigation.toc);
                     setMetadata((localBook as Book & { package: { metadata: Record<string, string> } }).package.metadata);
 
-                    localBook.coverUrl().then(url => {
+                    localBook.coverUrl().then(async (url) => {
                         setCoverUrl(url);
+                        if (!url) return;
+                        try {
+                            const resp = await fetch(url);
+                            const blob = await resp.blob();
+                            const reader2 = new FileReader();
+                            reader2.onload = () => {
+                                updateBookCover(file.name, reader2.result as string).catch(() => {});
+                            };
+                            reader2.readAsDataURL(blob);
+                        } catch {
+                            // non-critical
+                        }
                     });
                 });
             };
@@ -157,6 +176,15 @@ export default function Player({ file, onBack }: PlayerProps) {
             wakeLockRef.current?.release().then(() => { wakeLockRef.current = null; });
         }
     }, [isPlaying]);
+
+    // Auto-restore saved chapter when TOC becomes available
+    useEffect(() => {
+        if (!initialChapterHref || hasAutoSelectedRef.current || toc.length === 0) return;
+        hasAutoSelectedRef.current = true;
+        const saved = toc.find((item: { href: string }) => item.href === initialChapterHref);
+        if (saved) selectChapter(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [toc]);
 
     // Re-acquire wake lock if page becomes visible again while playing
     useEffect(() => {
@@ -202,6 +230,7 @@ export default function Player({ file, onBack }: PlayerProps) {
 
     const selectChapter = async (item: any) => {
         setCurrentChapter(item);
+        currentChapterRef.current = { href: item.href, label: item.label };
         setIsPlaying(false);
         if (audioRef.current) {
             audioRef.current.pause();
@@ -209,6 +238,7 @@ export default function Player({ file, onBack }: PlayerProps) {
         setAudioUrl(null);
         setCurrentTime(0);
         setDuration(0);
+        savePosition(file.name, { chapterHref: item.href, chapterLabel: item.label, currentTime: 0 });
         await loadChapterText(item.href, item.label);
     };
 
@@ -342,8 +372,27 @@ export default function Player({ file, onBack }: PlayerProps) {
                         ref={audioRef}
                         src={audioUrl}
                         onEnded={() => setIsPlaying(false)}
-                        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
-                        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+                        onTimeUpdate={() => {
+                            const time = audioRef.current?.currentTime ?? 0;
+                            setCurrentTime(time);
+                            const now = Date.now();
+                            if (currentChapterRef.current && now - lastSaveRef.current > 10_000) {
+                                lastSaveRef.current = now;
+                                savePosition(file.name, {
+                                    chapterHref: currentChapterRef.current.href,
+                                    chapterLabel: currentChapterRef.current.label,
+                                    currentTime: time,
+                                });
+                            }
+                        }}
+                        onLoadedMetadata={() => {
+                            setDuration(audioRef.current?.duration ?? 0);
+                            if (pendingTimeRef.current !== null && audioRef.current) {
+                                audioRef.current.currentTime = pendingTimeRef.current;
+                                setCurrentTime(pendingTimeRef.current);
+                                pendingTimeRef.current = null;
+                            }
+                        }}
                         autoPlay
                         className="hidden"
                     />
