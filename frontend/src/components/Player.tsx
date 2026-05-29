@@ -12,6 +12,74 @@ interface PlayerProps {
     onBack: () => void;
 }
 
+const BLOCK_ELEMENTS = new Set(["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "section", "article", "tr", "dd", "dt"]);
+const SKIP_ELEMENTS = new Set(["head", "script", "style", "nav"]);
+
+function walkText(node: Element): string {
+    const parts: string[] = [];
+    for (const child of Array.from(node.childNodes)) {
+        if (child.nodeType === 3) {
+            parts.push(child.textContent ?? "");
+        } else if (child.nodeType === 1) {
+            const el = child as Element;
+            const name = el.localName;
+            if (SKIP_ELEMENTS.has(name)) continue;
+            const epubType = el.getAttribute("epub:type");
+            if (
+                epubType?.includes("pagebreak") ||
+                el.getAttribute("role") === "doc-pagebreak" ||
+                el.getAttribute("aria-hidden") === "true"
+            ) continue;
+            const inner = walkText(el);
+            if (name === "br") {
+                parts.push("\n");
+            } else if (BLOCK_ELEMENTS.has(name)) {
+                const trimmed = inner.trim();
+                if (trimmed) parts.push("\n\n" + trimmed);
+            } else {
+                parts.push(inner);
+            }
+        }
+    }
+    return parts.join("");
+}
+
+function extractReadableText(doc: Document | any, chapterLabel?: string): string {
+    const findChild = (root: Element, localName: string): Element | null => {
+        for (const child of Array.from(root.children ?? [])) {
+            if (child.localName === localName) return child;
+        }
+        return null;
+    };
+
+    const root: Element | null =
+        doc?.body ??
+        doc?.documentElement ??
+        (doc?.localName === "html" ? doc : null) ??
+        doc ?? null;
+
+    if (!root) return typeof doc === "string" ? doc : "";
+
+    const body = root.localName === "html" ? (findChild(root, "body") ?? root) : root;
+
+    try {
+        let text = walkText(body).replace(/\n{3,}/g, "\n\n").trim();
+
+        // Strip the leading paragraph if it duplicates the chapter label shown in the header
+        if (chapterLabel) {
+            const normalize = (s: string) => s.trim().toUpperCase().replace(/\s+/g, " ");
+            const paragraphs = text.split("\n\n");
+            if (paragraphs.length > 1 && normalize(paragraphs[0]).includes(normalize(chapterLabel))) {
+                text = paragraphs.slice(1).join("\n\n").trim();
+            }
+        }
+
+        return text || body.textContent?.trim() || "";
+    } catch {
+        return body.textContent?.trim() ?? "";
+    }
+}
+
 export default function Player({ file, onBack }: PlayerProps) {
     const [book, setBook] = useState<Book | null>(null);
     const [toc, setToc] = useState<any[]>([]);
@@ -26,7 +94,11 @@ export default function Player({ file, onBack }: PlayerProps) {
     const [selectedVoice, setSelectedVoice] = useState("en-US-SteffanNeural");
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
     const isPdf = file.name.endsWith(".pdf") || file.type === "application/pdf";
     const pdfGetPageTextRef = useRef<((pageIndex: number) => Promise<string>) | null>(null);
@@ -35,7 +107,6 @@ export default function Player({ file, onBack }: PlayerProps) {
         let localBook: Book | null = null;
 
         if (isPdf) {
-            // PDF handling - import dynamically to avoid server-side rendering issues
             import("@/lib/pdf").then(({ loadPdf }) => {
                 loadPdf(file).then(({ toc, getPageText, title }: { toc: { id: string; label: string; href: string }[]; getPageText: (pageIndex: number) => Promise<string>; title: string }) => {
                     setToc(toc);
@@ -47,7 +118,6 @@ export default function Player({ file, onBack }: PlayerProps) {
                 });
             });
         } else {
-            // EPUB handling
             const reader = new FileReader();
             reader.onload = (e) => {
                 const bookData = e.target?.result as ArrayBuffer;
@@ -75,9 +145,34 @@ export default function Player({ file, onBack }: PlayerProps) {
         };
     }, [file, isPdf]);
 
-    const loadChapterText = async (href: string) => {
+    // Acquire/release screen wake lock based on playback state
+    useEffect(() => {
+        if (!("wakeLock" in navigator)) return;
+
+        if (isPlaying) {
+            navigator.wakeLock.request("screen")
+                .then(lock => { wakeLockRef.current = lock; })
+                .catch(err => console.warn("Wake lock request failed:", err));
+        } else {
+            wakeLockRef.current?.release().then(() => { wakeLockRef.current = null; });
+        }
+    }, [isPlaying]);
+
+    // Re-acquire wake lock if page becomes visible again while playing
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible" && isPlaying && !wakeLockRef.current) {
+                navigator.wakeLock?.request("screen")
+                    .then(lock => { wakeLockRef.current = lock; })
+                    .catch(err => console.warn("Wake lock re-acquire failed:", err));
+            }
+        };
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }, [isPlaying]);
+
+    const loadChapterText = async (href: string, label?: string) => {
         if (isPdf) {
-            // PDF page text loading
             const pageIndex = parseInt(href, 10);
             if (!isNaN(pageIndex) && pdfGetPageTextRef.current) {
                 try {
@@ -91,13 +186,12 @@ export default function Player({ file, onBack }: PlayerProps) {
             return;
         }
 
-        // EPUB chapter text loading
         if (!book) return;
         try {
             const spineItem = book.spine.get(href);
             if (spineItem) {
                 const doc = await spineItem.load(book.load.bind(book)) as Document | any;
-                const text = doc?.body?.textContent || doc?.documentElement?.textContent || doc?.textContent || (typeof doc === 'string' ? doc : "") || "Could not extract text from chapter.";
+                const text = extractReadableText(doc, label) || "Could not extract text from chapter.";
                 setChapterText(text);
                 return text;
             }
@@ -113,7 +207,9 @@ export default function Player({ file, onBack }: PlayerProps) {
             audioRef.current.pause();
         }
         setAudioUrl(null);
-        await loadChapterText(item.href);
+        setCurrentTime(0);
+        setDuration(0);
+        await loadChapterText(item.href, item.label);
     };
 
     const handlePlayPause = async () => {
@@ -136,7 +232,7 @@ export default function Player({ file, onBack }: PlayerProps) {
                 }
             }
         }
-    }
+    };
 
     const handleVoiceChange = async (newVoice: string) => {
         setSelectedVoice(newVoice);
@@ -147,6 +243,8 @@ export default function Player({ file, onBack }: PlayerProps) {
                 audioRef.current.pause();
             }
             setAudioUrl(null);
+            setCurrentTime(0);
+            setDuration(0);
 
             setIsLoadingAudio(true);
             const { url, error } = await synthesizeAudio(chapterText, newVoice);
@@ -164,6 +262,13 @@ export default function Player({ file, onBack }: PlayerProps) {
     useEffect(() => {
         if (audioRef.current) audioRef.current.playbackRate = playbackSpeed;
     }, [playbackSpeed, audioUrl]);
+
+    const handleSeek = (time: number) => {
+        if (audioRef.current) {
+            audioRef.current.currentTime = time;
+            setCurrentTime(time);
+        }
+    };
 
     const handleDownload = async () => {
         if (!currentChapter) return;
@@ -220,6 +325,8 @@ export default function Player({ file, onBack }: PlayerProps) {
                     currentChapter={currentChapter}
                     metadata={metadata}
                     playbackSpeed={playbackSpeed}
+                    currentTime={currentTime}
+                    duration={duration}
                     onPlayPause={handlePlayPause}
                     onDownload={handleDownload}
                     onToggleChapterList={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -227,6 +334,7 @@ export default function Player({ file, onBack }: PlayerProps) {
                         setPlaybackSpeed(speed);
                         if (audioRef.current) audioRef.current.playbackRate = speed;
                     }}
+                    onSeek={handleSeek}
                 />
 
                 {audioUrl && (
@@ -234,6 +342,8 @@ export default function Player({ file, onBack }: PlayerProps) {
                         ref={audioRef}
                         src={audioUrl}
                         onEnded={() => setIsPlaying(false)}
+                        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+                        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
                         autoPlay
                         className="hidden"
                     />
