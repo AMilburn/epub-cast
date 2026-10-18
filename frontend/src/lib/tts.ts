@@ -6,6 +6,7 @@ export interface SynthesizeAudioResult {
 }
 
 const CHUNK_SIZE = 4500;
+const DEFAULT_TTS_ENDPOINT = process.env.NEXT_PUBLIC_TTS_ENDPOINT ?? "http://localhost:8000/synthesize";
 
 function chunkText(text: string): string[] {
     const chunks: string[] = [];
@@ -59,7 +60,7 @@ async function synthesizeChunk(text: string, voice: string, endpoint: string): P
 export const synthesizeAudio = async (
     text: string,
     voice: string = "en-US-AriaNeural",
-    endpoint: string = "http://localhost:8000/synthesize",
+    endpoint: string = DEFAULT_TTS_ENDPOINT,
     onProgress?: (current: number, total: number) => void,
 ): Promise<SynthesizeAudioResult> => {
     try {
@@ -78,8 +79,9 @@ export const synthesizeAudio = async (
         onProgress?.(chunks.length, chunks.length);
         const combined = new Blob(blobs, { type: "audio/mpeg" });
         return { url: URL.createObjectURL(combined) };
-    } catch (error: any) {
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
         console.error("Error connecting to TTS backend", error);
-        return { url: null, error: error.message };
+        return { url: null, error: message };
     }
 };
